@@ -10,7 +10,7 @@ training:
   use_gpu: true
 
 paths:
-  image_dir: "./data/highres"
-  gen_image_dir: "./data/gen"
+  high_res_dir: "./data/highres"
+  low_res_dir: "./data/gen"
   output_dir: "./results"
   csv_subdir: "csv"
