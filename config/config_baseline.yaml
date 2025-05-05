@@ -1,0 +1,16 @@
+model:
+  kernel_size: 3
+  num_layers: 5
+
+training:
+  batch_size: 16
+  learning_rate: 1e-6
+  epochs: 10
+  alpha: 0.7
+  use_gpu: true
+
+paths:
+  image_dir: "./data/highres"
+  gen_image_dir: "./data/gen"
+  output_dir: "./results"
+  csv_subdir: "csv"
