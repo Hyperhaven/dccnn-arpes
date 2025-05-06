@@ -3,7 +3,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-class Dataset(Dataset):
+class CustomDataset(Dataset):
     def __init__(self, high_res_dir, low_res_dir):
 
         self.high_res_dir = high_res_dir    # Folder of high_res_images
