@@ -5,8 +5,9 @@ model:
 training:
   batch_size: 16
   learning_rate: 0.0001
-  epochs: 10
+  epochs: 150
   alpha: 0.7
+  early_stopping_patience: 3
   use_gpu: true
 
 paths:
