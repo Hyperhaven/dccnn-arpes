@@ -4,7 +4,7 @@ import torch # Neural Network Framework
 import gc # Garbage Collector
 from datetime import datetime # gives current time for datanames
 from pathlib import Path # build paths
-from torch.utils.data import DataLoader # class of PyTorch for seperation of the Dataset in batches, shuffling, multithreading and iteration of batches
+from torch.utils.data import DataLoader, Subset # class of PyTorch for seperation of the Dataset in batches, shuffling, multithreading and iteration of batches
 
 # Import externs
 from modules.datasets.dataset import CustomDataset
@@ -43,13 +43,23 @@ def run_all_configs(config_dir):
 
         device = torch.device("cuda" if train_cfg["use_gpu"] and torch.cuda.is_available() else "cpu") # use GPU-RAM for cuda calculations
         dataset = CustomDataset(path_cfg["high_res_dir"], path_cfg["low_res_dir"]) # load dataset
-        dataloader = DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=True, drop_last=True) # load dataloader
+
+        train_dataset = Subset(dataset, list(set(range(len(dataset))) - set(range(500))))
+        val_dataset = Subset(dataset, list(range(500)))
+
+
+
+        #dataloader = DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=True, drop_last=True) # load dataloader
+
+        train_loader = DataLoader(train_dataset, batch_size=train_cfg["batch_size"], shuffle=True,drop_last=True)
+        val_loader = DataLoader(val_dataset, batch_size=train_cfg["batch_size"], shuffle=False,drop_last=True)
+
         model = CCNN(model_cfg["kernel_size"], model_cfg["num_layers"]) # load model
 
 
         ##########################################################################################################################################
         ##########################################################################################################################################
-        model, metrics = train_model(model, dataloader, train_cfg["epochs"], train_cfg["learning_rate"], train_cfg["alpha"], device) #############
+        model, metrics = train_model(model, train_loader, val_loader, train_cfg["epochs"], train_cfg["learning_rate"], train_cfg["alpha"], device) #############
         ##########################################################################################################################################
         ##########################################################################################################################################
 
@@ -58,7 +68,7 @@ def run_all_configs(config_dir):
         torch.save(model.state_dict(), model_path) # save model weights and biases
 
 
-        del model, dataloader, dataset # delete references for gc.collect()
+        del model, train_loader, val_loader, dataset # delete references for gc.collect()
         torch.cuda.empty_cache() # clears GPU-RAM
         gc.collect() # Python Garbage Collector clears CPU-RAM
 

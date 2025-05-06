@@ -9,13 +9,13 @@ import os
 from torch.amp import autocast, GradScaler
 from datetime import datetime
 
-def train_model(model, dataloader, epochs, learning_rate, alpha, device):
+def train_model(model, train_loader, val_loader, epochs, learning_rate, alpha, device):
     model.to(device) # use device (GPU or CPU)
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate) # choose optimizer AdamW instead of Adam because of weight decay. Default value is 0.1. In future versions you can choose in config.
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-5)                 #<-------------------------- UPDATE
 
-    metrics = pd.DataFrame(columns=["Epoch", "Loss", "Time"]) # initialize pandas df to create the csv later
+    metrics = pd.DataFrame(columns=["Epoch", "Loss", "Val-Loss", "Time"]) # initialize pandas df to create the csv later
     lrs = [] # list of learning rates
 
     scaler = GradScaler('cuda') ##################################################
@@ -28,7 +28,7 @@ def train_model(model, dataloader, epochs, learning_rate, alpha, device):
         model.train() # go to train mode, not eval mode. Model can change weights and biases now!
         total_loss = 0.0 # initialize total_loss for calculating the sum
 
-        progress = tqdm(dataloader, desc=f"Epoch [{epoch+1}/{epochs}]", leave=False) # now its:  for batch in tqdm(dataloader):   instead of:  for batch in dataloader
+        progress = tqdm(train_loader, desc=f"Epoch [{epoch+1}/{epochs}]", leave=False) # now its:  for batch in tqdm(dataloader):   instead of:  for batch in dataloader
 
         current_lr = optimizer.param_groups[0]["lr"] # take current lr from param_groups[0]
         lrs.append(current_lr) # add it to lrs
@@ -55,9 +55,24 @@ def train_model(model, dataloader, epochs, learning_rate, alpha, device):
         duration = time.time() - start # total time for a epoch
         scheduler.step()
 
-        avg_loss = total_loss / len(dataloader) # calculation of the average loss: sum of total loss of the batch / Batchsize
-        metrics.loc[len(metrics)] = [epoch + 1, avg_loss, duration] # add loss and duration information
-        print(f"[{epoch+1}/{epochs}] Loss: {avg_loss:.4f} | Time: {duration:.2f}s")
+        avg_loss = total_loss / len(train_loader) # calculation of the average loss: sum of total loss of the batch / Batchsize
+
+        # Validation!
+        model.eval()
+        val_loss = 0.0
+        with torch.no_grad():
+            for low_res_image, high_res_image in val_loader:
+                low_res_image, high_res_image = low_res_image.to(device), high_res_image.to(device)
+                with autocast(device_type='cuda'):
+                    output = model(low_res_image)
+                    loss = loss_function(output, high_res_image, alpha)
+                val_loss += loss.item()
+
+        avg_val_loss = val_loss / len(val_loader)
+
+
+        metrics.loc[len(metrics)] = [epoch + 1, avg_loss, avg_val_loss, duration] # add loss and duration information
+        print(f"[{epoch+1}/{epochs}] Loss: {avg_loss:.4f} | Val-Loss: {avg_val_loss} | Time: {duration:.2f}s")
 
     # Plot for lr-analysis
     plot_dir = "results/lr_finder"
