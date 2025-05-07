@@ -8,6 +8,7 @@ from pathlib import Path # build paths
 import os
 from torch.amp import autocast, GradScaler
 from datetime import datetime
+import numpy as np
 
 def train_model(model, train_loader, val_loader, epochs, learning_rate, alpha, device, early_stopping_patience):
     model.to(device) # use device (GPU or CPU)
@@ -27,9 +28,20 @@ def train_model(model, train_loader, val_loader, epochs, learning_rate, alpha, d
     epochs_no_improve = 0
     best_avg_val_loss = float('inf')
     cosine = False
+
+    warmup_epochs = 10
+    warmup_lrs = np.linspace(1e-7, learning_rate, num=warmup_epochs)
+    print(warmup_lrs)
     for epoch in range(epochs): # loop over the epochs
         start = time.time() # starttime
         
+        ###############################################################################
+        if epoch < warmup_epochs:                                                    ##
+            warmup_lr =  warmup_lrs[epoch]                                           ##
+            for param_group in optimizer.param_groups:                               ##
+                param_group['lr'] = warmup_lr                                        ##
+        ###############################################################################
+
         model.train() # go to train mode, not eval mode. Model can change weights and biases now!
         total_loss = 0.0 # initialize total_loss for calculating the sum
 
@@ -57,8 +69,10 @@ def train_model(model, train_loader, val_loader, epochs, learning_rate, alpha, d
             total_loss += loss.item() # add loss to list
             progress.set_postfix(loss=loss.item()) # add loss to progress bar
         
+
         duration = time.time() - start # total time for a epoch
-        
+        if cosine:
+            scheduler.step()
 
 
         avg_loss = total_loss / len(train_loader) # calculation of the average loss: sum of total loss of the batch / Batchsize
@@ -77,35 +91,37 @@ def train_model(model, train_loader, val_loader, epochs, learning_rate, alpha, d
         avg_val_loss = val_loss / len(val_loader)
         ###########################################################################################################
 
-        if not cosine:
-            print("not cosine!")
-            if avg_val_loss < best_avg_val_loss - 1e-4:
-                best_avg_val_loss = avg_val_loss
-                epochs_no_improve = 0
-            else:
-                epochs_no_improve += 1
-
-            if epochs_no_improve >= early_stopping_patience:
-                cosine_epochs = max(int(0.3 * (epoch + 2)), 10)
-                scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                    optimizer, T_max=cosine_epochs, eta_min=1e-5)
-                cosine = True
-                print(f"Switching to CosineAnnealing for {cosine_epochs} epochs!")
-                cosine_counter = 0
-        if cosine:
-            scheduler.step()
-
-        ############################################################################################################
-
-
-
-        metrics.loc[len(metrics)] = [epoch + 1, avg_loss, avg_val_loss, duration] # add loss and duration information
-        print(f"[{epoch+1}/{epochs}] Loss: {avg_loss:.4f} | Val-Loss: {avg_val_loss} | Time: {duration:.2f}s | Patience: {epochs_no_improve}")
         if cosine:
             cosine_counter += 1
+            metrics.loc[len(metrics)] = [epoch + 1, avg_loss, avg_val_loss, duration] # add loss and duration information
+            print(f"[{epoch+1:3d}/{epochs}] Loss: {avg_loss:.4f} | Val-Loss: {avg_val_loss:.4f} | Time: {duration:.2f}s | Learning-Rate: {param_group['lr']:.2e} | CosineAnnealing [{cosine_counter}/{cosine_epochs}]")
             if cosine_counter >= cosine_epochs:
                 print("Ready with CosineAnnealing!")
                 break
+
+        if not cosine:
+            if avg_val_loss < best_avg_val_loss - 1e-4:
+                best_avg_val_loss = avg_val_loss
+                epochs_no_improve = 0
+                metrics.loc[len(metrics)] = [epoch + 1, avg_loss, avg_val_loss, duration] # add loss and duration information
+                print(f"[{epoch+1:3d}/{epochs}] Loss: {avg_loss:.4f} | Val-Loss: {avg_val_loss:.4f} | Time: {duration:.2f}s | Learning-Rate: {param_group['lr']:.2e} | Patience: {epochs_no_improve}")
+            else:
+                epochs_no_improve += 1
+                metrics.loc[len(metrics)] = [epoch + 1, avg_loss, avg_val_loss, duration] # add loss and duration information
+                print(f"[{epoch+1:3d}/{epochs}] Loss: {avg_loss:.4f} | Val-Loss: {avg_val_loss:.4f} | Time: {duration:.2f}s | Learning-Rate: {param_group['lr']:.2e} | Patience: {epochs_no_improve}")
+
+            if epochs_no_improve >= early_stopping_patience:
+                cosine_epochs = max(int(0.3 * (epoch + 1)), 10)
+                scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                    optimizer, T_max=cosine_epochs, eta_min=1e-7)
+                cosine = True
+                print(f'Switching to CosineAnnealing with {cosine_epochs} epochs!')
+                cosine_counter = 0
+
+        
+        ############################################################################################################
+
+
     # Plot for lr-analysis
     plot_dir = "results/lr_finder"
     Path(plot_dir).mkdir(parents=True, exist_ok=True)
