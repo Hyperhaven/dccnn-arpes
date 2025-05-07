@@ -21,7 +21,7 @@ def run_all_configs(config_dir):
     configs = sorted(glob.glob(f"{config_dir}/*.yaml")) # searching for all .yaml files and gives back a list with all of them
 
     for cfg_path in configs: # for every .yaml file
-
+        print(f'Starting with {cfg_path}')
         # initialize all config values 
         cfg = load_config(cfg_path)
         model_cfg = cfg["model"]
@@ -44,7 +44,7 @@ def run_all_configs(config_dir):
         device = torch.device("cuda" if train_cfg["use_gpu"] and torch.cuda.is_available() else "cpu") # use GPU-RAM for cuda calculations
         dataset = CustomDataset(path_cfg["high_res_dir"], path_cfg["low_res_dir"]) # load dataset
 
-        train_dataset = Subset(dataset, list(set(range(len(dataset))) - set(range(500))))
+        train_dataset = Subset(dataset, list(set(range(len(dataset))) - set(range(500)))) #500,500
         val_dataset = Subset(dataset, list(range(500)))
 
 
@@ -55,7 +55,6 @@ def run_all_configs(config_dir):
         val_loader = DataLoader(val_dataset, batch_size=train_cfg["batch_size"], shuffle=False,drop_last=True)
 
         model = CCNN(model_cfg["kernel_size"], model_cfg["num_layers"]) # load model
-
 
         ##########################################################################################################################################
         ##########################################################################################################################################
