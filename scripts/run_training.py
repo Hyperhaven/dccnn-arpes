@@ -21,7 +21,7 @@ def run_all_configs(config_dir):
     configs = sorted(glob.glob(f"{config_dir}/*.yaml")) # searching for all .yaml files and gives back a list with all of them
 
     for cfg_path in configs: # for every .yaml file
-        print(f'Starting with {cfg_path}')
+        
         # initialize all config values 
         cfg = load_config(cfg_path)
         model_cfg = cfg["model"]
@@ -37,14 +37,14 @@ def run_all_configs(config_dir):
         model_dir.mkdir(exist_ok=True)
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S") # current time for filename
-        mask = f"{timestamp}_layers{model_cfg['num_layers']}_batch{train_cfg['batch_size']}_kernel{model_cfg['kernel_size']}" # mask for resulting model filename 
+        mask = f"{timestamp}_layers{model_cfg['num_layers']}_batch{train_cfg['batch_size']}_kernel{model_cfg['kernel_size']}_alpha{train_cfg['alpha']}" # mask for resulting model filename 
         csv_path = csv_dir / f"{mask}.csv" # path of the .csv
         model_path = model_dir / f"{mask}.pt" # path of the .pt (model)
 
         device = torch.device("cuda" if train_cfg["use_gpu"] and torch.cuda.is_available() else "cpu") # use GPU-RAM for cuda calculations
         dataset = CustomDataset(path_cfg["high_res_dir"], path_cfg["low_res_dir"]) # load dataset
 
-        train_dataset = Subset(dataset, list(set(range(len(dataset))) - set(range(500)))) #500,500
+        train_dataset = Subset(dataset, list(set(range(len(dataset))) - set(range(500))))
         val_dataset = Subset(dataset, list(range(500)))
 
 
